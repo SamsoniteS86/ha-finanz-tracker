@@ -1,4 +1,4 @@
-  name: Build
+ name: Build
 
   "on":
     push:
@@ -25,7 +25,8 @@
             context: ./finanz-tracker
             push: true
             platforms: linux/arm64
-            tags: ghcr.io/samsonites86/ha-finanz-tracker-aarch64:latest
+            tags: ghcr.io/samsonites86/ha-finanz-tracker-aarch64:latest,ghcr.io/samsonites86/ha-finanz-trac
+  ker-aarch64:1.0.0
             build-args: BUILD_FROM=alpine:3.18
 
     build-amd64:
@@ -47,7 +48,8 @@
             context: ./finanz-tracker
             push: true
             platforms: linux/amd64
-            tags: ghcr.io/samsonites86/ha-finanz-tracker-amd64:latest
+            tags:
+  ghcr.io/samsonites86/ha-finanz-tracker-amd64:latest,ghcr.io/samsonites86/ha-finanz-tracker-amd64:1.0.0
             build-args: BUILD_FROM=alpine:3.18
 
     build-armv7:
@@ -69,5 +71,6 @@
             context: ./finanz-tracker
             push: true
             platforms: linux/arm/v7
-            tags: ghcr.io/samsonites86/ha-finanz-tracker-armv7:latest
+            tags:
+  ghcr.io/samsonites86/ha-finanz-tracker-armv7:latest,ghcr.io/samsonites86/ha-finanz-tracker-armv7:1.0.0
             build-args: BUILD_FROM=alpine:3.18

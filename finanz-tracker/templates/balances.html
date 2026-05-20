@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Kontostände eintragen</h1>
+
+<form method="GET" class="month-selector">
+    <label>Jahr: <input type="number" name="year" value="{{ year }}" min="2020" max="2040"></label>
+    <label>Monat: <select name="month">
+        {% for m in range(1, 13) %}
+        <option value="{{ m }}" {% if m == month %}selected{% endif %}>{{ "{:02d}".format(m) }}</option>
+        {% endfor %}
+    </select></label>
+    <button type="submit">Laden</button>
+</form>
+
+<form method="POST">
+    <input type="hidden" name="year" value="{{ year }}">
+    <input type="hidden" name="month" value="{{ month }}">
+
+    <h2>Girokonten</h2>
+    {% for acc in accounts if acc.type == 'girokonto' %}
+    <div class="form-row">
+        <label>{{ acc.name }}</label>
+        <input type="text" name="balance_{{ acc.id }}" value="{{ '{:.2f}'.format(acc.balance) if acc.balance else '' }}" placeholder="0,00" inputmode="decimal">
+        <span class="currency">€</span>
+    </div>
+    {% endfor %}
+
+    <h2>Tagesgeldkonten</h2>
+    {% for acc in accounts if acc.type == 'tagesgeld' %}
+    <div class="form-row">
+        <label>{{ acc.name }}</label>
+        <input type="text" name="balance_{{ acc.id }}" value="{{ '{:.2f}'.format(acc.balance) if acc.balance else '' }}" placeholder="0,00" inputmode="decimal">
+        <span class="currency">€</span>
+    </div>
+    {% endfor %}
+
+    <h2>Depots</h2>
+    {% for acc in accounts if acc.type == 'depot' %}
+    <div class="form-row">
+        <label>{{ acc.name }}</label>
+        <input type="text" name="balance_{{ acc.id }}" value="{{ '{:.2f}'.format(acc.balance) if acc.balance else '' }}" placeholder="0,00" inputmode="decimal">
+        <span class="currency">€</span>
+    </div>
+    {% endfor %}
+
+    <button type="submit" class="btn-primary">Speichern</button>
+</form>
+{% endblock %}

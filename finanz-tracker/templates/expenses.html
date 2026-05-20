@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Ausgaben</h1>
+
+<form method="POST" class="expense-form">
+    <div class="form-row">
+        <label>Datum</label>
+        <input type="date" name="date" required>
+    </div>
+    <div class="form-row">
+        <label>Betrag</label>
+        <input type="text" name="amount" placeholder="0,00" required inputmode="decimal">
+        <span class="currency">€</span>
+    </div>
+    <div class="form-row">
+        <label>Kategorie</label>
+        <select name="category" required>
+            <option value="">-- Bitte wählen --</option>
+            {% for cat in categories %}
+            <option value="{{ cat }}">{{ cat }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="form-row">
+        <label>Beschreibung</label>
+        <input type="text" name="description" placeholder="Wofür?">
+    </div>
+    <button type="submit" class="btn-primary">Hinzufügen</button>
+</form>
+
+<h2>Alle Ausgaben</h2>
+{% if expenses %}
+<table>
+    <thead>
+        <tr>
+            <th>Datum</th>
+            <th>Kategorie</th>
+            <th>Beschreibung</th>
+            <th>Betrag</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for exp in expenses %}
+        <tr>
+            <td>{{ exp.date }}</td>
+            <td>{{ exp.category }}</td>
+            <td>{{ exp.description }}</td>
+            <td class="amount-cell negative-text">{{ "{:,.2f}".format(exp.amount).replace(",", "X").replace(".", ",").replace("X", ".") }} €</td>
+            <td>
+                <form method="POST" action="{{ url_for('delete_expense', expense_id=exp.id) }}" style="display:inline">
+                    <button type="submit" class="btn-delete" onclick="return confirm('Wirklich löschen?')">X</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% if total_pages > 1 %}
+<div class="pagination">
+    {% if page > 1 %}
+    <a href="?page={{ page - 1 }}">Zurück</a>
+    {% endif %}
+    <span>Seite {{ page }} von {{ total_pages }}</span>
+    {% if page < total_pages %}
+    <a href="?page={{ page + 1 }}">Weiter</a>
+    {% endif %}
+</div>
+{% endif %}
+{% else %}
+<p>Noch keine Ausgaben eingetragen.</p>
+{% endif %}
+{% endblock %}

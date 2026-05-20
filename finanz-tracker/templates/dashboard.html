@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Dashboard</h1>
+<div class="summary-cards">
+    <div class="card">
+        <h3>Gesamtvermögen</h3>
+        <div class="amount">{{ "{:,.2f}".format(total_current).replace(",", "X").replace(".", ",").replace("X", ".") }} €</div>
+    </div>
+    <div class="card">
+        <h3>Vormonat</h3>
+        <div class="amount">{{ "{:,.2f}".format(total_previous).replace(",", "X").replace(".", ",").replace("X", ".") }} €</div>
+    </div>
+    <div class="card {% if change >= 0 %}positive{% else %}negative{% endif %}">
+        <h3>Veränderung</h3>
+        <div class="amount">{{ "+" if change >= 0 }}{{ "{:,.2f}".format(change).replace(",", "X").replace(".", ",").replace("X", ".") }} €</div>
+    </div>
+    <div class="card">
+        <h3>Ausgaben diesen Monat</h3>
+        <div class="amount negative-text">{{ "{:,.2f}".format(monthly_expenses).replace(",", "X").replace(".", ",").replace("X", ".") }} €</div>
+    </div>
+</div>
+
+<h2>Kontostände {{ "{:02d}".format(current_month) }}/{{ current_year }}</h2>
+<table>
+    <thead>
+        <tr>
+            <th>Konto</th>
+            <th>Typ</th>
+            <th>Stand</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in balances %}
+        <tr>
+            <td>{{ row.name }}</td>
+            <td>{{ row.type | capitalize }}</td>
+            <td class="amount-cell">{{ "{:,.2f}".format(row.balance or 0).replace(",", "X").replace(".", ",").replace("X", ".") }} €</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<h2>Letzte Ausgaben</h2>
+{% if recent_expenses %}
+<table>
+    <thead>
+        <tr>
+            <th>Datum</th>
+            <th>Kategorie</th>
+            <th>Beschreibung</th>
+            <th>Betrag</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for exp in recent_expenses %}
+        <tr>
+            <td>{{ exp.date }}</td>
+            <td>{{ exp.category }}</td>
+            <td>{{ exp.description }}</td>
+            <td class="amount-cell negative-text">{{ "{:,.2f}".format(exp.amount).replace(",", "X").replace(".", ",").replace("X", ".") }} €</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p>Noch keine Ausgaben eingetragen.</p>
+{% endif %}
+{% endblock %}

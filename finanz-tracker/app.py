@@ -87,10 +87,21 @@ def dashboard():
         ORDER BY a.type, a.name
     """).fetchall()
 
-    total_current = sum(row["balance"] or 0 for row in balances)
+    total_main = 0
+    total_rosa = 0
+    total_janosch = 0
+    for row in balances:
+        bal = row["balance"] or 0
+        name = row["name"]
+        if "Rosa" in name:
+            total_rosa += bal
+        elif "Janosch" in name:
+            total_janosch += bal
+        else:
+            total_main += bal
 
     prev_balances = conn.execute("""
-        SELECT a.id, b.balance
+        SELECT a.name, b.balance
         FROM accounts a
         LEFT JOIN balances b ON a.id = b.account_id
             AND b.date = (
@@ -100,8 +111,22 @@ def dashboard():
             )
     """).fetchall()
 
-    total_previous = sum(row["balance"] or 0 for row in prev_balances)
-    change = total_current - total_previous
+    prev_main = 0
+    prev_rosa = 0
+    prev_janosch = 0
+    for row in prev_balances:
+        bal = row["balance"] or 0
+        name = row["name"]
+        if "Rosa" in name:
+            prev_rosa += bal
+        elif "Janosch" in name:
+            prev_janosch += bal
+        else:
+            prev_main += bal
+
+    change_main = total_main - prev_main
+    change_rosa = total_rosa - prev_rosa
+    change_janosch = total_janosch - prev_janosch
 
     recent_expenses = conn.execute("""
         SELECT * FROM expenses ORDER BY date DESC, id DESC LIMIT 10
@@ -119,9 +144,12 @@ def dashboard():
     return render_template(
         "dashboard.html",
         balances=balances,
-        total_current=total_current,
-        total_previous=total_previous,
-        change=change,
+        total_main=total_main,
+        total_rosa=total_rosa,
+        total_janosch=total_janosch,
+        change_main=change_main,
+        change_rosa=change_rosa,
+        change_janosch=change_janosch,
         recent_expenses=recent_expenses,
         monthly_expenses=monthly_expenses["total"],
         today=today,
@@ -266,7 +294,9 @@ def chart_data():
         ORDER BY b.date, a.type, a.name
     """).fetchall()
 
-    dates_set = sorted(set(row["date"] for row in history))
+    main_history = [row for row in history if "Rosa" not in row["name"] and "Janosch" not in row["name"]]
+
+    dates_set = sorted(set(row["date"] for row in main_history))
     labels = [d[5:] + "/" + d[:4] for d in dates_set]
 
     totals = []
@@ -275,13 +305,25 @@ def chart_data():
     for d in dates_set:
         day_total = 0
         type_totals = {"girokonto": 0, "tagesgeld": 0, "depot": 0}
-        for row in history:
+        for row in main_history:
             if row["date"] == d:
                 day_total += row["balance"]
                 type_totals[row["type"]] += row["balance"]
         totals.append(day_total)
         for t in by_type:
             by_type[t].append(type_totals[t])
+
+    depot_accounts = [row for row in main_history if row["type"] == "depot"]
+    depot_names = sorted(set(row["name"] for row in depot_accounts))
+    by_depot = {name: [] for name in depot_names}
+
+    for d in dates_set:
+        depot_day = {name: 0 for name in depot_names}
+        for row in depot_accounts:
+            if row["date"] == d:
+                depot_day[row["name"]] = row["balance"]
+        for name in depot_names:
+            by_depot[name].append(depot_day[name])
 
     expense_data = conn.execute("""
         SELECT substr(date, 1, 7) as month, category, SUM(amount) as total
@@ -305,6 +347,7 @@ def chart_data():
             "labels": labels,
             "totals": totals,
             "by_type": by_type,
+            "by_depot": by_depot,
         },
         "expenses": {
             "labels": expense_months,

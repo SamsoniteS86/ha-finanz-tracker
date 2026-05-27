@@ -167,6 +167,21 @@ th {
     background: #1d4ed8;
 }
 
+.btn-edit {
+    font-size: 0.75rem;
+    background: #2563eb;
+    color: white;
+    padding: 0.25rem 0.75rem;
+    border-radius: 0.25rem;
+    text-decoration: none;
+    margin-left: 0.5rem;
+    vertical-align: middle;
+}
+
+.btn-edit:hover {
+    background: #1d4ed8;
+}
+
 .btn-delete {
     background: #fee2e2;
     color: #dc2626;

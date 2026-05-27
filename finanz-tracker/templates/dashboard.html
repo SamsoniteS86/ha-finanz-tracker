@@ -7,7 +7,7 @@
         <div class="amount">{{ "{:,.2f}".format(total_current).replace(",", "X").replace(".", ",").replace("X", ".") }} €</div>
     </div>
     <div class="card">
-        <h3>Vormonat</h3>
+        <h3>Vorheriger Eintrag</h3>
         <div class="amount">{{ "{:,.2f}".format(total_previous).replace(",", "X").replace(".", ",").replace("X", ".") }} €</div>
     </div>
     <div class="card {% if change >= 0 %}positive{% else %}negative{% endif %}">
@@ -20,13 +20,14 @@
     </div>
 </div>
 
-<h2>Kontostände {{ "{:02d}".format(current_month) }}/{{ current_year }}</h2>
+<h2>Aktuelle Kontostände</h2>
 <table>
     <thead>
         <tr>
             <th>Konto</th>
             <th>Typ</th>
             <th>Stand</th>
+            <th>Datum</th>
         </tr>
     </thead>
     <tbody>
@@ -35,6 +36,7 @@
             <td>{{ row.name }}</td>
             <td>{{ row.type | capitalize }}</td>
             <td class="amount-cell">{{ "{:,.2f}".format(row.balance or 0).replace(",", "X").replace(".", ",").replace("X", ".") }} €</td>
+            <td>{{ row.date or '-' }}</td>
         </tr>
         {% endfor %}
     </tbody>

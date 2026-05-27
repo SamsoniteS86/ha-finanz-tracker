@@ -1,6 +1,6 @@
 name: "Finanz-Tracker"
 description: "Persönliche Finanzübersicht mit Kontostände-Tracking und Ausgabenverwaltung"
-version: "1.2.2"
+version: "1.3.0"
 slug: "finanz-tracker"
 url: "https://github.com/SamsoniteS86/ha-finanz-tracker"
 image: "ghcr.io/samsonites86/ha-finanz-tracker-{arch}"

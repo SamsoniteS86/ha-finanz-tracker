@@ -228,6 +228,15 @@ def balance_history():
     )
 
 
+@app.route("/balances/delete/<date>", methods=["POST"])
+def delete_balances(date):
+    conn = get_db()
+    conn.execute("DELETE FROM balances WHERE date = ?", (date,))
+    conn.commit()
+    conn.close()
+    return redirect(url_for("balance_history"))
+
+
 @app.route("/expenses", methods=["GET", "POST"])
 def expenses():
     conn = get_db()
@@ -325,6 +334,22 @@ def chart_data():
         for name in depot_names:
             by_depot[name].append(depot_day[name])
 
+    kids_history = [row for row in history if "Rosa" in row["name"] or "Janosch" in row["name"]]
+    kids_dates = sorted(set(row["date"] for row in kids_history))
+    kids_labels = [d[5:] + "/" + d[:4] for d in kids_dates]
+    by_kid = {"Rosa": [], "Janosch": []}
+
+    for d in kids_dates:
+        kid_totals = {"Rosa": 0, "Janosch": 0}
+        for row in kids_history:
+            if row["date"] == d:
+                if "Rosa" in row["name"]:
+                    kid_totals["Rosa"] += row["balance"]
+                elif "Janosch" in row["name"]:
+                    kid_totals["Janosch"] += row["balance"]
+        by_kid["Rosa"].append(kid_totals["Rosa"])
+        by_kid["Janosch"].append(kid_totals["Janosch"])
+
     expense_data = conn.execute("""
         SELECT substr(date, 1, 7) as month, category, SUM(amount) as total
         FROM expenses
@@ -348,6 +373,8 @@ def chart_data():
             "totals": totals,
             "by_type": by_type,
             "by_depot": by_depot,
+            "kids_labels": kids_labels,
+            "by_kid": by_kid,
         },
         "expenses": {
             "labels": expense_months,

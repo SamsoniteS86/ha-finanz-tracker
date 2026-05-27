@@ -3,16 +3,19 @@
 <h1>Dashboard</h1>
 <div class="summary-cards">
     <div class="card">
-        <h3>Gesamtvermögen</h3>
-        <div class="amount">{{ "{:,.2f}".format(total_current).replace(",", "X").replace(".", ",").replace("X", ".") }} €</div>
+        <h3>Gesamt</h3>
+        <div class="amount">{{ "{:,.2f}".format(total_main).replace(",", "X").replace(".", ",").replace("X", ".") }} €</div>
+        <div class="change {% if change_main >= 0 %}positive{% else %}negative{% endif %}">{{ "+" if change_main >= 0 }}{{ "{:,.2f}".format(change_main).replace(",", "X").replace(".", ",").replace("X", ".") }} €</div>
     </div>
     <div class="card">
-        <h3>Vorheriger Eintrag</h3>
-        <div class="amount">{{ "{:,.2f}".format(total_previous).replace(",", "X").replace(".", ",").replace("X", ".") }} €</div>
+        <h3>Gesamt Rosa</h3>
+        <div class="amount">{{ "{:,.2f}".format(total_rosa).replace(",", "X").replace(".", ",").replace("X", ".") }} €</div>
+        <div class="change {% if change_rosa >= 0 %}positive{% else %}negative{% endif %}">{{ "+" if change_rosa >= 0 }}{{ "{:,.2f}".format(change_rosa).replace(",", "X").replace(".", ",").replace("X", ".") }} €</div>
     </div>
-    <div class="card {% if change >= 0 %}positive{% else %}negative{% endif %}">
-        <h3>Veränderung</h3>
-        <div class="amount">{{ "+" if change >= 0 }}{{ "{:,.2f}".format(change).replace(",", "X").replace(".", ",").replace("X", ".") }} €</div>
+    <div class="card">
+        <h3>Gesamt Janosch</h3>
+        <div class="amount">{{ "{:,.2f}".format(total_janosch).replace(",", "X").replace(".", ",").replace("X", ".") }} €</div>
+        <div class="change {% if change_janosch >= 0 %}positive{% else %}negative{% endif %}">{{ "+" if change_janosch >= 0 }}{{ "{:,.2f}".format(change_janosch).replace(",", "X").replace(".", ",").replace("X", ".") }} €</div>
     </div>
     <div class="card">
         <h3>Ausgaben diesen Monat</h3>

@@ -13,6 +13,11 @@
 </div>
 
 <div class="chart-container">
+    <h2>Depots einzeln</h2>
+    <canvas id="depotChart"></canvas>
+</div>
+
+<div class="chart-container">
     <h2>Ausgaben nach Kategorie</h2>
     <canvas id="expenseChart"></canvas>
 </div>
@@ -68,6 +73,26 @@ fetch('/api/chart-data')
                 scales: { y: { ticks: { callback: v => v.toLocaleString('de-DE') + ' €' } } }
             }
         });
+
+        const DEPOT_COLORS = ['#059669', '#7c3aed', '#d97706', '#ef4444'];
+        const depotNames = Object.keys(data.balance.by_depot);
+        if (depotNames.length > 0) {
+            const depotDatasets = depotNames.map((name, i) => ({
+                label: name,
+                data: data.balance.by_depot[name],
+                borderColor: DEPOT_COLORS[i % DEPOT_COLORS.length],
+                tension: 0.3,
+            }));
+
+            new Chart(document.getElementById('depotChart'), {
+                type: 'line',
+                data: { labels: data.balance.labels, datasets: depotDatasets },
+                options: {
+                    responsive: true,
+                    scales: { y: { ticks: { callback: v => v.toLocaleString('de-DE') + ' €' } } }
+                }
+            });
+        }
 
         if (data.expenses.labels.length > 0) {
             const datasets = Object.entries(data.expenses.by_category).map(([cat, values], i) => ({

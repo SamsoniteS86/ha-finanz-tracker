@@ -1,15 +1,11 @@
 import sqlite3
 import os
-import signal
-import sys
-from datetime import datetime
+from datetime import datetime, date
 from flask import Flask, render_template, request, redirect, url_for, jsonify
 
 app = Flask(__name__)
 
-APP_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(APP_DIR, "finanz.db")
-PID_FILE = os.path.join(APP_DIR, "app.pid")
+DB_PATH = os.environ.get("DB_PATH", os.path.join(os.path.dirname(os.path.abspath(__file__)), "finanz.db"))
 
 ACCOUNTS = [
     ("DKB Girokonto", "girokonto"),
@@ -50,14 +46,13 @@ def init_db():
             type TEXT NOT NULL
         );
 
-        CREATE TABLE IF NOT EXISTS monthly_balances (
+        CREATE TABLE IF NOT EXISTS balances (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             account_id INTEGER NOT NULL,
-            year INTEGER NOT NULL,
-            month INTEGER NOT NULL,
+            date TEXT NOT NULL,
             balance REAL NOT NULL DEFAULT 0,
             FOREIGN KEY (account_id) REFERENCES accounts(id),
-            UNIQUE(account_id, year, month)
+            UNIQUE(account_id, date)
         );
 
         CREATE TABLE IF NOT EXISTS expenses (
@@ -82,45 +77,42 @@ def init_db():
 @app.route("/")
 def dashboard():
     conn = get_db()
-
-    now = datetime.now()
-    current_year = now.year
-    current_month = now.month
+    today = date.today().isoformat()
 
     balances = conn.execute("""
-        SELECT a.name, a.type, mb.balance, mb.year, mb.month
+        SELECT a.name, a.type, b.balance, b.date
         FROM accounts a
-        LEFT JOIN monthly_balances mb ON a.id = mb.account_id
-            AND mb.year = ? AND mb.month = ?
+        LEFT JOIN balances b ON a.id = b.account_id
+            AND b.date = (SELECT MAX(b2.date) FROM balances b2 WHERE b2.account_id = a.id)
         ORDER BY a.type, a.name
-    """, (current_year, current_month)).fetchall()
+    """).fetchall()
 
     total_current = sum(row["balance"] or 0 for row in balances)
 
-    if current_month == 1:
-        prev_year, prev_month = current_year - 1, 12
-    else:
-        prev_year, prev_month = current_year, current_month - 1
-
     prev_balances = conn.execute("""
-        SELECT COALESCE(SUM(mb.balance), 0) as total
+        SELECT a.id, b.balance
         FROM accounts a
-        LEFT JOIN monthly_balances mb ON a.id = mb.account_id
-            AND mb.year = ? AND mb.month = ?
-    """, (prev_year, prev_month)).fetchone()
+        LEFT JOIN balances b ON a.id = b.account_id
+            AND b.date = (
+                SELECT MAX(b2.date) FROM balances b2
+                WHERE b2.account_id = a.id
+                AND b2.date < (SELECT MAX(b3.date) FROM balances b3 WHERE b3.account_id = a.id)
+            )
+    """).fetchall()
 
-    total_previous = prev_balances["total"] or 0
+    total_previous = sum(row["balance"] or 0 for row in prev_balances)
     change = total_current - total_previous
 
     recent_expenses = conn.execute("""
         SELECT * FROM expenses ORDER BY date DESC, id DESC LIMIT 10
     """).fetchall()
 
+    now = datetime.now()
     monthly_expenses = conn.execute("""
         SELECT COALESCE(SUM(amount), 0) as total
         FROM expenses
         WHERE substr(date, 1, 7) = ?
-    """, (f"{current_year:04d}-{current_month:02d}",)).fetchone()
+    """, (f"{now.year:04d}-{now.month:02d}",)).fetchone()
 
     conn.close()
 
@@ -132,8 +124,7 @@ def dashboard():
         change=change,
         recent_expenses=recent_expenses,
         monthly_expenses=monthly_expenses["total"],
-        current_year=current_year,
-        current_month=current_month,
+        today=today,
         categories=CATEGORIES,
     )
 
@@ -143,8 +134,7 @@ def balances():
     conn = get_db()
 
     if request.method == "POST":
-        year = int(request.form["year"])
-        month = int(request.form["month"])
+        entry_date = request.form["date"]
 
         accounts = conn.execute("SELECT * FROM accounts ORDER BY type, name").fetchall()
         for account in accounts:
@@ -152,35 +142,61 @@ def balances():
             balance = float(balance_str.replace(",", ".")) if balance_str else 0
 
             conn.execute("""
-                INSERT INTO monthly_balances (account_id, year, month, balance)
-                VALUES (?, ?, ?, ?)
-                ON CONFLICT(account_id, year, month)
+                INSERT INTO balances (account_id, date, balance)
+                VALUES (?, ?, ?)
+                ON CONFLICT(account_id, date)
                 DO UPDATE SET balance = excluded.balance
-            """, (account["id"], year, month, balance))
+            """, (account["id"], entry_date, balance))
 
         conn.commit()
         conn.close()
         return redirect(url_for("dashboard"))
 
-    now = datetime.now()
-    year = int(request.args.get("year", now.year))
-    month = int(request.args.get("month", now.month))
+    entry_date = request.args.get("date", date.today().isoformat())
 
     accounts = conn.execute("""
-        SELECT a.*, mb.balance
+        SELECT a.*, b.balance
         FROM accounts a
-        LEFT JOIN monthly_balances mb ON a.id = mb.account_id
-            AND mb.year = ? AND mb.month = ?
+        LEFT JOIN balances b ON a.id = b.account_id AND b.date = ?
         ORDER BY a.type, a.name
-    """, (year, month)).fetchall()
+    """, (entry_date,)).fetchall()
 
     conn.close()
 
     return render_template(
         "balances.html",
         accounts=accounts,
-        year=year,
-        month=month,
+        entry_date=entry_date,
+    )
+
+
+@app.route("/balances/history")
+def balance_history():
+    conn = get_db()
+
+    entries = conn.execute("""
+        SELECT b.date, a.name, a.type, b.balance
+        FROM balances b
+        JOIN accounts a ON a.id = b.account_id
+        ORDER BY b.date DESC, a.type, a.name
+    """).fetchall()
+
+    dates = []
+    grouped = {}
+    for row in entries:
+        d = row["date"]
+        if d not in grouped:
+            grouped[d] = {"date": d, "accounts": [], "total": 0}
+            dates.append(d)
+        grouped[d]["accounts"].append(row)
+        grouped[d]["total"] += row["balance"]
+
+    conn.close()
+
+    return render_template(
+        "balance_history.html",
+        dates=dates,
+        grouped=grouped,
     )
 
 
@@ -189,7 +205,7 @@ def expenses():
     conn = get_db()
 
     if request.method == "POST":
-        date = request.form["date"]
+        exp_date = request.form["date"]
         amount = float(request.form["amount"].replace(",", "."))
         category = request.form["category"]
         description = request.form.get("description", "")
@@ -197,7 +213,7 @@ def expenses():
         conn.execute("""
             INSERT INTO expenses (date, amount, category, description)
             VALUES (?, ?, ?, ?)
-        """, (date, amount, category, description))
+        """, (exp_date, amount, category, description))
         conn.commit()
         conn.close()
         return redirect(url_for("expenses"))
@@ -244,26 +260,26 @@ def chart_data():
     conn = get_db()
 
     history = conn.execute("""
-        SELECT mb.year, mb.month, a.name, a.type, mb.balance
-        FROM monthly_balances mb
-        JOIN accounts a ON a.id = mb.account_id
-        ORDER BY mb.year, mb.month, a.type, a.name
+        SELECT b.date, a.name, a.type, b.balance
+        FROM balances b
+        JOIN accounts a ON a.id = b.account_id
+        ORDER BY b.date, a.type, a.name
     """).fetchall()
 
-    months_set = sorted(set((row["year"], row["month"]) for row in history))
-    labels = [f"{m:02d}/{y}" for y, m in months_set]
+    dates_set = sorted(set(row["date"] for row in history))
+    labels = [d[5:] + "/" + d[:4] for d in dates_set]
 
     totals = []
     by_type = {"girokonto": [], "tagesgeld": [], "depot": []}
 
-    for y, m in months_set:
-        month_total = 0
+    for d in dates_set:
+        day_total = 0
         type_totals = {"girokonto": 0, "tagesgeld": 0, "depot": 0}
         for row in history:
-            if row["year"] == y and row["month"] == m:
-                month_total += row["balance"]
+            if row["date"] == d:
+                day_total += row["balance"]
                 type_totals[row["type"]] += row["balance"]
-        totals.append(month_total)
+        totals.append(day_total)
         for t in by_type:
             by_type[t].append(type_totals[t])
 
@@ -301,9 +317,6 @@ def chart_data():
 
 
 if __name__ == "__main__":
-    with open(PID_FILE, "w") as f:
-        f.write(str(os.getpid()))
-
     init_db()
-    print(f"Finanz-Tracker läuft auf http://0.0.0.0:5000")
+    print("Finanz-Tracker laeuft auf http://0.0.0.0:5000")
     app.run(host="0.0.0.0", port=5000, debug=False)

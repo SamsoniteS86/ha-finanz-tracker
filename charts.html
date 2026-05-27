@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Diagramme</h1>
+
+<div class="chart-container">
+    <h2>Vermögensentwicklung (Gesamt)</h2>
+    <canvas id="totalChart"></canvas>
+</div>
+
+<div class="chart-container">
+    <h2>Vermögen nach Typ</h2>
+    <canvas id="typeChart"></canvas>
+</div>
+
+<div class="chart-container">
+    <h2>Depots einzeln</h2>
+    <canvas id="depotChart"></canvas>
+</div>
+
+<div class="chart-container">
+    <h2>Ausgaben nach Kategorie</h2>
+    <canvas id="expenseChart"></canvas>
+</div>
+
+<script>
+const COLORS = {
+    total: '#2563eb',
+    girokonto: '#059669',
+    tagesgeld: '#d97706',
+    depot: '#7c3aed',
+};
+
+const EXPENSE_COLORS = [
+    '#ef4444', '#f97316', '#eab308', '#22c55e',
+    '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899'
+];
+
+fetch('/api/chart-data')
+    .then(r => r.json())
+    .then(data => {
+        new Chart(document.getElementById('totalChart'), {
+            type: 'line',
+            data: {
+                labels: data.balance.labels,
+                datasets: [{
+                    label: 'Gesamtvermögen',
+                    data: data.balance.totals,
+                    borderColor: COLORS.total,
+                    backgroundColor: COLORS.total + '20',
+                    fill: true,
+                    tension: 0.3,
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { display: false } },
+                scales: { y: { ticks: { callback: v => v.toLocaleString('de-DE') + ' €' } } }
+            }
+        });
+
+        new Chart(document.getElementById('typeChart'), {
+            type: 'line',
+            data: {
+                labels: data.balance.labels,
+                datasets: [
+                    { label: 'Girokonto', data: data.balance.by_type.girokonto, borderColor: COLORS.girokonto, tension: 0.3 },
+                    { label: 'Tagesgeld', data: data.balance.by_type.tagesgeld, borderColor: COLORS.tagesgeld, tension: 0.3 },
+                    { label: 'Depot', data: data.balance.by_type.depot, borderColor: COLORS.depot, tension: 0.3 },
+                ]
+            },
+            options: {
+                responsive: true,
+                scales: { y: { ticks: { callback: v => v.toLocaleString('de-DE') + ' €' } } }
+            }
+        });
+
+        const DEPOT_COLORS = ['#059669', '#7c3aed', '#d97706', '#ef4444'];
+        const depotNames = Object.keys(data.balance.by_depot);
+        if (depotNames.length > 0) {
+            const depotDatasets = depotNames.map((name, i) => ({
+                label: name,
+                data: data.balance.by_depot[name],
+                borderColor: DEPOT_COLORS[i % DEPOT_COLORS.length],
+                tension: 0.3,
+            }));
+
+            new Chart(document.getElementById('depotChart'), {
+                type: 'line',
+                data: { labels: data.balance.labels, datasets: depotDatasets },
+                options: {
+                    responsive: true,
+                    scales: { y: { ticks: { callback: v => v.toLocaleString('de-DE') + ' €' } } }
+                }
+            });
+        }
+
+        if (data.expenses.labels.length > 0) {
+            const datasets = Object.entries(data.expenses.by_category).map(([cat, values], i) => ({
+                label: cat,
+                data: values,
+                backgroundColor: EXPENSE_COLORS[i % EXPENSE_COLORS.length],
+            }));
+
+            new Chart(document.getElementById('expenseChart'), {
+                type: 'bar',
+                data: { labels: data.expenses.labels, datasets },
+                options: {
+                    responsive: true,
+                    scales: {
+                        x: { stacked: true },
+                        y: { stacked: true, ticks: { callback: v => v.toLocaleString('de-DE') + ' €' } }
+                    }
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

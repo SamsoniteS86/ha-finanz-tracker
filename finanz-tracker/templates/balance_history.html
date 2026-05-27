@@ -4,7 +4,7 @@
 
 {% if dates %}
 {% for d in dates %}
-<h2>{{ d }} — Gesamt: {{ "{:,.2f}".format(grouped[d].total).replace(",", "X").replace(".", ",").replace("X", ".") }} €</h2>
+<h2>{{ d }} — Gesamt: {{ "{:,.2f}".format(grouped[d].total).replace(",", "X").replace(".", ",").replace("X", ".") }} € <a href="{{ url_for('balances', date=d) }}" class="btn-edit">Bearbeiten</a></h2>
 <table>
     <thead>
         <tr>

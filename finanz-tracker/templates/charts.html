@@ -18,6 +18,11 @@
 </div>
 
 <div class="chart-container">
+    <h2>Kinder (Tagesgeld + Depot)</h2>
+    <canvas id="kidsChart"></canvas>
+</div>
+
+<div class="chart-container">
     <h2>Ausgaben nach Kategorie</h2>
     <canvas id="expenseChart"></canvas>
 </div>
@@ -87,6 +92,23 @@ fetch('/api/chart-data')
             new Chart(document.getElementById('depotChart'), {
                 type: 'line',
                 data: { labels: data.balance.labels, datasets: depotDatasets },
+                options: {
+                    responsive: true,
+                    scales: { y: { ticks: { callback: v => v.toLocaleString('de-DE') + ' €' } } }
+                }
+            });
+        }
+
+        if (data.balance.kids_labels && data.balance.kids_labels.length > 0) {
+            new Chart(document.getElementById('kidsChart'), {
+                type: 'line',
+                data: {
+                    labels: data.balance.kids_labels,
+                    datasets: [
+                        { label: 'Rosa', data: data.balance.by_kid.Rosa, borderColor: '#ec4899', tension: 0.3 },
+                        { label: 'Janosch', data: data.balance.by_kid.Janosch, borderColor: '#3b82f6', tension: 0.3 },
+                    ]
+                },
                 options: {
                     responsive: true,
                     scales: { y: { ticks: { callback: v => v.toLocaleString('de-DE') + ' €' } } }

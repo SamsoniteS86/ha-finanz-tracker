@@ -3,18 +3,12 @@
 <h1>Kontostände eintragen</h1>
 
 <form method="GET" class="month-selector">
-    <label>Jahr: <input type="number" name="year" value="{{ year }}" min="2020" max="2040"></label>
-    <label>Monat: <select name="month">
-        {% for m in range(1, 13) %}
-        <option value="{{ m }}" {% if m == month %}selected{% endif %}>{{ "{:02d}".format(m) }}</option>
-        {% endfor %}
-    </select></label>
+    <label>Datum: <input type="date" name="date" value="{{ entry_date }}"></label>
     <button type="submit">Laden</button>
 </form>
 
 <form method="POST">
-    <input type="hidden" name="year" value="{{ year }}">
-    <input type="hidden" name="month" value="{{ month }}">
+    <input type="hidden" name="date" value="{{ entry_date }}">
 
     <h2>Girokonten</h2>
     {% for acc in accounts if acc.type == 'girokonto' %}
@@ -45,4 +39,6 @@
 
     <button type="submit" class="btn-primary">Speichern</button>
 </form>
+
+<p style="margin-top: 2rem;"><a href="{{ url_for('balance_history') }}">Alle Einträge anzeigen</a></p>
 {% endblock %}

@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Kontostände Verlauf</h1>
+
+{% if dates %}
+{% for d in dates %}
+<h2>{{ d }} — Gesamt: {{ "{:,.2f}".format(grouped[d].total).replace(",", "X").replace(".", ",").replace("X", ".") }} €</h2>
+<table>
+    <thead>
+        <tr>
+            <th>Konto</th>
+            <th>Typ</th>
+            <th>Stand</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in grouped[d].accounts %}
+        <tr>
+            <td>{{ row.name }}</td>
+            <td>{{ row.type | capitalize }}</td>
+            <td class="amount-cell">{{ "{:,.2f}".format(row.balance).replace(",", "X").replace(".", ",").replace("X", ".") }} €</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endfor %}
+{% else %}
+<p>Noch keine Einträge vorhanden.</p>
+{% endif %}
+{% endblock %}

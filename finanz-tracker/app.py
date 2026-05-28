@@ -1,6 +1,11 @@
 import sqlite3
 import os
+import json
+import threading
+import time
 from datetime import datetime, date
+from urllib.request import urlopen, Request
+from urllib.error import URLError
 from flask import Flask, render_template, request, redirect, url_for, jsonify
 
 app = Flask(__name__)
@@ -63,6 +68,29 @@ def init_db():
             description TEXT,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
         );
+
+        CREATE TABLE IF NOT EXISTS holdings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account_id INTEGER NOT NULL,
+            ticker TEXT NOT NULL,
+            name TEXT NOT NULL,
+            shares REAL NOT NULL,
+            currency TEXT NOT NULL DEFAULT 'EUR',
+            FOREIGN KEY (account_id) REFERENCES accounts(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS depot_cash (
+            account_id INTEGER PRIMARY KEY,
+            amount REAL NOT NULL DEFAULT 0,
+            FOREIGN KEY (account_id) REFERENCES accounts(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS prices (
+            ticker TEXT PRIMARY KEY,
+            price REAL NOT NULL,
+            currency TEXT NOT NULL,
+            last_updated TEXT NOT NULL
+        );
     """)
 
     for name, acc_type in ACCOUNTS:
@@ -70,8 +98,130 @@ def init_db():
             "INSERT OR IGNORE INTO accounts (name, type) VALUES (?, ?)",
             (name, acc_type),
         )
+
+    existing = conn.execute("SELECT COUNT(*) as cnt FROM holdings").fetchone()["cnt"]
+    if existing == 0:
+        depot_ids = {}
+        for row in conn.execute("SELECT id, name FROM accounts WHERE type = 'depot'"):
+            depot_ids[row["name"]] = row["id"]
+
+        default_holdings = [
+            (depot_ids["Depot Gemeinschaftskonto"], "EUNL.DE", "MSCI World", 190, "EUR"),
+            (depot_ids["Depot Gemeinschaftskonto"], "CHIP.DE", "MSCI Semiconductors", 125, "EUR"),
+            (depot_ids["Depot TradeRepublic"], "CAT", "Caterpillar", 4.024, "USD"),
+            (depot_ids["Depot TradeRepublic"], "DCED.DE", "Data Center REITs", 93.59, "EUR"),
+            (depot_ids["Depot TradeRepublic"], "SMSN.L", "Samsung", 0.5, "USD"),
+            (depot_ids["Depot TradeRepublic"], "000660.KS", "SK Hynix", 1.52, "KRW"),
+            (depot_ids["Depot TradeRepublic"], "JBL", "Jabil Circuit", 3.31, "USD"),
+            (depot_ids["Depot TradeRepublic"], "RGTI", "Rigetti Computing", 25, "USD"),
+            (depot_ids["Depot Rosa"], "EUNL.DE", "MSCI World", 166, "EUR"),
+            (depot_ids["Depot Janosch"], "EUNL.DE", "MSCI World", 150, "EUR"),
+        ]
+        for acc_id, ticker, name, shares, currency in default_holdings:
+            conn.execute(
+                "INSERT INTO holdings (account_id, ticker, name, shares, currency) VALUES (?, ?, ?, ?, ?)",
+                (acc_id, ticker, name, shares, currency),
+            )
+
     conn.commit()
     conn.close()
+
+
+def fetch_price(ticker):
+    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=1d&range=1d"
+    headers = {"User-Agent": "Mozilla/5.0"}
+    try:
+        req = Request(url, headers=headers)
+        with urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read())
+            return data["chart"]["result"][0]["meta"]["regularMarketPrice"]
+    except Exception:
+        return None
+
+
+def fetch_exchange_rate(pair):
+    price = fetch_price(f"{pair}=X")
+    return price if price else 1.0
+
+
+def update_depot_values():
+    conn = get_db()
+    today = date.today().isoformat()
+
+    holdings = conn.execute("""
+        SELECT h.account_id, h.ticker, h.shares, h.currency
+        FROM holdings h
+        JOIN accounts a ON a.id = h.account_id
+        WHERE a.type = 'depot'
+    """).fetchall()
+
+    if not holdings:
+        conn.close()
+        return
+
+    tickers = set(row["ticker"] for row in holdings)
+    currencies_needed = set(row["currency"] for row in holdings)
+
+    rates = {"EUR": 1.0}
+    if "USD" in currencies_needed:
+        rates["USD"] = fetch_exchange_rate("EURUSD")
+    if "KRW" in currencies_needed:
+        rates["KRW"] = fetch_exchange_rate("EURKRW")
+    if "GBP" in currencies_needed:
+        rates["GBP"] = fetch_exchange_rate("EURGBP")
+
+    prices = {}
+    for ticker in tickers:
+        price = fetch_price(ticker)
+        if price is not None:
+            prices[ticker] = price
+            conn.execute("""
+                INSERT INTO prices (ticker, price, currency, last_updated)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(ticker) DO UPDATE SET price = excluded.price, last_updated = excluded.last_updated
+            """, (ticker, price, "fetched", today))
+
+    account_values = {}
+    for row in holdings:
+        acc_id = row["account_id"]
+        ticker = row["ticker"]
+        if ticker in prices:
+            currency = row["currency"]
+            rate = rates.get(currency, 1.0)
+            if currency != "EUR" and rate > 1:
+                value_eur = (prices[ticker] * row["shares"]) / rate
+            else:
+                value_eur = prices[ticker] * row["shares"]
+            account_values[acc_id] = account_values.get(acc_id, 0) + value_eur
+
+    cash_rows = conn.execute("SELECT account_id, amount FROM depot_cash").fetchall()
+    for row in cash_rows:
+        acc_id = row["account_id"]
+        if acc_id in account_values:
+            account_values[acc_id] += row["amount"]
+        else:
+            account_values[acc_id] = row["amount"]
+
+    for acc_id, total in account_values.items():
+        conn.execute("""
+            INSERT INTO balances (account_id, date, balance)
+            VALUES (?, ?, ?)
+            ON CONFLICT(account_id, date)
+            DO UPDATE SET balance = excluded.balance
+        """, (acc_id, today, round(total, 2)))
+
+    conn.commit()
+    conn.close()
+    print(f"[{datetime.now().strftime('%H:%M:%S')}] Depot-Werte aktualisiert: {len(account_values)} Konten")
+
+
+def price_updater():
+    while True:
+        try:
+            update_depot_values()
+        except Exception as e:
+            print(f"Fehler beim Kurs-Update: {e}")
+        time.sleep(3600)
 
 
 @app.route("/")
@@ -237,6 +387,101 @@ def delete_balances(date):
     return redirect(url_for("balance_history"))
 
 
+@app.route("/holdings")
+def holdings_page():
+    conn = get_db()
+    depot_accounts = conn.execute(
+        "SELECT * FROM accounts WHERE type = 'depot' ORDER BY name"
+    ).fetchall()
+
+    holdings = conn.execute("""
+        SELECT h.*, a.name as account_name, p.price as last_price, p.last_updated
+        FROM holdings h
+        JOIN accounts a ON a.id = h.account_id
+        LEFT JOIN prices p ON p.ticker = h.ticker
+        ORDER BY a.name, h.name
+    """).fetchall()
+
+    cash = {}
+    cash_rows = conn.execute("SELECT account_id, amount FROM depot_cash").fetchall()
+    for row in cash_rows:
+        cash[row["account_id"]] = row["amount"]
+
+    conn.close()
+
+    return render_template(
+        "holdings.html",
+        depot_accounts=depot_accounts,
+        holdings=holdings,
+        cash=cash,
+    )
+
+
+@app.route("/holdings/add", methods=["POST"])
+def add_holding():
+    conn = get_db()
+    account_id = int(request.form["account_id"])
+    ticker = request.form["ticker"].strip().upper()
+    name = request.form["name"].strip()
+    shares = float(request.form["shares"].replace(",", "."))
+    currency = request.form.get("currency", "EUR").upper()
+
+    conn.execute(
+        "INSERT INTO holdings (account_id, ticker, name, shares, currency) VALUES (?, ?, ?, ?, ?)",
+        (account_id, ticker, name, shares, currency),
+    )
+    conn.commit()
+    conn.close()
+    return redirect(url_for("holdings_page"))
+
+
+@app.route("/holdings/edit/<int:holding_id>", methods=["POST"])
+def edit_holding(holding_id):
+    conn = get_db()
+    ticker = request.form["ticker"].strip().upper()
+    name = request.form["name"].strip()
+    shares = float(request.form["shares"].replace(",", "."))
+    currency = request.form.get("currency", "EUR").upper()
+
+    conn.execute(
+        "UPDATE holdings SET ticker = ?, name = ?, shares = ?, currency = ? WHERE id = ?",
+        (ticker, name, shares, currency, holding_id),
+    )
+    conn.commit()
+    conn.close()
+    return redirect(url_for("holdings_page"))
+
+
+@app.route("/holdings/delete/<int:holding_id>", methods=["POST"])
+def delete_holding(holding_id):
+    conn = get_db()
+    conn.execute("DELETE FROM holdings WHERE id = ?", (holding_id,))
+    conn.commit()
+    conn.close()
+    return redirect(url_for("holdings_page"))
+
+
+@app.route("/holdings/cash", methods=["POST"])
+def update_cash():
+    conn = get_db()
+    account_id = int(request.form["account_id"])
+    amount = float(request.form["amount"].replace(",", ".")) if request.form["amount"] else 0
+
+    conn.execute("""
+        INSERT INTO depot_cash (account_id, amount) VALUES (?, ?)
+        ON CONFLICT(account_id) DO UPDATE SET amount = excluded.amount
+    """, (account_id, amount))
+    conn.commit()
+    conn.close()
+    return redirect(url_for("holdings_page"))
+
+
+@app.route("/holdings/refresh", methods=["POST"])
+def refresh_prices():
+    update_depot_values()
+    return redirect(url_for("holdings_page"))
+
+
 @app.route("/expenses", methods=["GET", "POST"])
 def expenses():
     conn = get_db()
@@ -388,5 +633,7 @@ def chart_data():
 
 if __name__ == "__main__":
     init_db()
+    updater = threading.Thread(target=price_updater, daemon=True)
+    updater.start()
     print("Finanz-Tracker laeuft auf http://0.0.0.0:5000")
     app.run(host="0.0.0.0", port=5000, debug=False)

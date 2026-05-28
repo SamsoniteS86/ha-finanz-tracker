@@ -1,7 +1,7 @@
 ARG BUILD_FROM=alpine:3.18
 FROM ${BUILD_FROM}
 
-RUN apk add --no-cache python3 py3-flask
+RUN apk add --no-cache python3 py3-flask ca-certificates
 
 WORKDIR /app
 

@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Depot-Positionen</h1>
+
+<form method="POST" action="{{ url_for('refresh_prices') }}" style="margin-bottom: 2rem;">
+    <button type="submit" class="btn-primary">Kurse jetzt aktualisieren</button>
+</form>
+
+{% for account in depot_accounts %}
+<h2>{{ account.name }}</h2>
+
+<div class="expense-form" style="margin-bottom: 1rem;">
+    <strong>Cash-Bestand:</strong>
+    <form method="POST" action="{{ url_for('update_cash') }}" style="display:inline">
+        <input type="hidden" name="account_id" value="{{ account.id }}">
+        <input type="text" name="amount" value="{{ '{:.2f}'.format(cash.get(account.id, 0)) }}" placeholder="0,00" inputmode="decimal" style="width:120px; padding:0.25rem 0.5rem;">
+        <span class="currency">€</span>
+        <button type="submit" class="btn-edit" style="margin-left:0.5rem;">Speichern</button>
+    </form>
+</div>
+
+{% set account_holdings = [] %}
+{% for h in holdings if h.account_id == account.id %}
+<div class="expense-form" style="margin-bottom: 0.5rem; display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+    <form method="POST" action="{{ url_for('edit_holding', holding_id=h.id) }}" style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap; flex:1;">
+        <input type="text" name="name" value="{{ h.name }}" style="width:180px; padding:0.25rem 0.5rem;">
+        <input type="text" name="ticker" value="{{ h.ticker }}" style="width:100px; padding:0.25rem 0.5rem;">
+        <input type="text" name="shares" value="{{ h.shares }}" style="width:80px; padding:0.25rem 0.5rem;" inputmode="decimal">
+        <select name="currency" style="padding:0.25rem;">
+            <option value="EUR" {% if h.currency == 'EUR' %}selected{% endif %}>EUR</option>
+            <option value="USD" {% if h.currency == 'USD' %}selected{% endif %}>USD</option>
+            <option value="KRW" {% if h.currency == 'KRW' %}selected{% endif %}>KRW</option>
+            <option value="GBP" {% if h.currency == 'GBP' %}selected{% endif %}>GBP</option>
+        </select>
+        {% if h.last_price %}
+        <span style="color:#64748b; font-size:0.8rem;">{{ "{:.2f}".format(h.last_price) }} {{ h.currency }} ({{ h.last_updated }})</span>
+        {% endif %}
+        <button type="submit" class="btn-edit">OK</button>
+    </form>
+    <form method="POST" action="{{ url_for('delete_holding', holding_id=h.id) }}" style="display:inline;">
+        <button type="submit" class="btn-delete" onclick="return confirm('Position löschen?')">X</button>
+    </form>
+</div>
+{% endfor %}
+
+<details style="margin-top: 0.5rem; margin-bottom: 2rem;">
+    <summary style="cursor:pointer; color:#2563eb;">+ Position hinzufügen</summary>
+    <form method="POST" action="{{ url_for('add_holding') }}" class="expense-form" style="margin-top:0.5rem;">
+        <input type="hidden" name="account_id" value="{{ account.id }}">
+        <div class="form-row">
+            <label>Name</label>
+            <input type="text" name="name" placeholder="z.B. MSCI World" required>
+        </div>
+        <div class="form-row">
+            <label>Yahoo Ticker</label>
+            <input type="text" name="ticker" placeholder="z.B. EUNL.DE" required>
+        </div>
+        <div class="form-row">
+            <label>Anteile</label>
+            <input type="text" name="shares" placeholder="z.B. 190" required inputmode="decimal">
+        </div>
+        <div class="form-row">
+            <label>Währung</label>
+            <select name="currency">
+                <option value="EUR">EUR</option>
+                <option value="USD">USD</option>
+                <option value="KRW">KRW</option>
+                <option value="GBP">GBP</option>
+            </select>
+        </div>
+        <button type="submit" class="btn-primary">Hinzufügen</button>
+    </form>
+</details>
+{% endfor %}
+{% endblock %}

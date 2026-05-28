@@ -14,6 +14,7 @@
             <a href="{{ url_for('dashboard') }}" class="{% if request.endpoint == 'dashboard' %}active{% endif %}">Dashboard</a>
             <a href="{{ url_for('balances') }}" class="{% if request.endpoint == 'balances' %}active{% endif %}">Kontostände</a>
             <a href="{{ url_for('expenses') }}" class="{% if request.endpoint == 'expenses' %}active{% endif %}">Ausgaben</a>
+            <a href="{{ url_for('holdings_page') }}" class="{% if request.endpoint == 'holdings_page' %}active{% endif %}">Depots</a>
             <a href="{{ url_for('charts') }}" class="{% if request.endpoint == 'charts' %}active{% endif %}">Diagramme</a>
         </div>
     </nav>

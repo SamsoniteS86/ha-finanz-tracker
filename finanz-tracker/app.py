@@ -144,6 +144,36 @@ def fetch_exchange_rate(pair):
     return price if price else 1.0
 
 
+def carry_forward_balances():
+    conn = get_db()
+    today = date.today().isoformat()
+
+    non_depot = conn.execute("""
+        SELECT a.id FROM accounts a
+        WHERE a.type != 'depot'
+    """).fetchall()
+
+    for row in non_depot:
+        acc_id = row["id"]
+        existing = conn.execute(
+            "SELECT 1 FROM balances WHERE account_id = ? AND date = ?", (acc_id, today)
+        ).fetchone()
+        if not existing:
+            last = conn.execute("""
+                SELECT balance FROM balances
+                WHERE account_id = ? AND date < ?
+                ORDER BY date DESC LIMIT 1
+            """, (acc_id, today)).fetchone()
+            if last:
+                conn.execute(
+                    "INSERT INTO balances (account_id, date, balance) VALUES (?, ?, ?)",
+                    (acc_id, today, last["balance"]),
+                )
+
+    conn.commit()
+    conn.close()
+
+
 def update_depot_values():
     conn = get_db()
     today = date.today().isoformat()
@@ -218,6 +248,7 @@ def update_depot_values():
 def price_updater():
     while True:
         try:
+            carry_forward_balances()
             update_depot_values()
         except Exception as e:
             print(f"Fehler beim Kurs-Update: {e}")

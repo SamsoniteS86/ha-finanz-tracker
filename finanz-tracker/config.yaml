@@ -1,6 +1,6 @@
 name: "Finanz-Tracker"
 description: "Persönliche Finanzübersicht mit Kontostände-Tracking und Ausgabenverwaltung"
-version: "2.0.0"
+version: "2.0.1"
 slug: "finanz-tracker"
 url: "https://github.com/SamsoniteS86/ha-finanz-tracker"
 image: "ghcr.io/samsonites86/ha-finanz-tracker-{arch}"
@@ -15,6 +15,8 @@ ingress: false
 panel_icon: "mdi:finance"
 map:
   - type: data
+    read_only: false
+  - type: share
     read_only: false
 options: {}
 schema: {}
